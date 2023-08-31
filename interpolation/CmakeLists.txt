@@ -1,6 +1,6 @@
 cmake_minimum_required ( VERSION 3.1.0...3.27.0 )
 
-project ( Tutte )
+project ( Interpolation )
 
 
 # Set to C++11
@@ -14,5 +14,5 @@ set ( SOURCE
 )
 
 add_executable(
-	tutte ${SOURCE}
+	main ${SOURCE}
 )
