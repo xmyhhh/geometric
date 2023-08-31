@@ -1,10 +1,10 @@
 #include <lr_interpolation.h>
 #include <random>
 #include <vector>
-#include <algorithm>
-#include <limits>
+
+
 void main() {
-	const double infinity = std::numeric_limits<double>::infinity();
+
 	std::vector<Vec3<double>> source;
 	std::vector<Vec3<double>> target;
 	bool use_random = false;

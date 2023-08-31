@@ -3,11 +3,15 @@
 #include <list>
 #include <assert.h>
 #include <iostream>
-
+#include <algorithm>
 #include "kriging.h"
+#include <limits>
+const double infinity = std::numeric_limits<double>::infinity();
+
 typedef enum {
 	Kriging_Interpolation = 0,
-	Liner_Interpolation = 1
+	Liner_Interpolation = 1,
+	IDW_Interpolation = 2,
 } InterpolationMethod;
 
 template <typename T = double>
@@ -64,7 +68,7 @@ void spatial_interpolation_kriging(std::list<Vec3<T>>& sourceDataPoint, std::lis
 
 	std::transform(kriging.dataPoint.begin(), kriging.dataPoint.end(), residuals.begin(), [&](const DataPoint& current) { return current.value - estimatedMean; });
 
-	double estimatedZ = 0.0;
+	T estimatedZ = 0.0;
 
 	for (auto iter = targetDataPoint.begin(); iter != targetDataPoint.end(); iter++) {
 		Point point((*iter).data[0], (*iter).data[1]);
@@ -72,28 +76,61 @@ void spatial_interpolation_kriging(std::list<Vec3<T>>& sourceDataPoint, std::lis
 		(*iter).data[2] = estimatedZ;
 	}
 
-	//for (unsigned int i = 0; i < rasterContext.width; i++)
-	//{
-	//	for (unsigned int j = 0; j < rasterContext.height; j++)
-	//	{
-	//		// The kriged estimate
-
-	//		Point point = rasterContext.XYtoPoint(i, j);
-
-	//		estimatedZ = SimpleKrigeForPoint(point.x, point.y, model, nugget, sill, range, choleskyDecomposition, residuals, estimatedMean);
-
-	//		dataPoint_value.push_back(DataPoint(i, j, estimatedZ));
-	//	}
-	//}
 	return;
 }
 
+
 template <typename T = double>
-void spatial_interpolation(std::list<Vec3<T>>& sourceDataPoint, std::list<Vec3<T>>& targetDataPoint, InterpolationMethod method = Kriging_Interpolation) {
+void spatial_interpolation_idw(std::list<Vec3<T>>& sourceDataPoint, std::list<Vec3<T>>& targetDataPoint) {
+
+	for (auto iter_t = targetDataPoint.begin(); iter_t != targetDataPoint.end(); iter_t++) {
+		//Step 1: calculate d_i
+
+		std::vector<T> vD_i;
+		vD_i.resize(sourceDataPoint.size());
+		for (auto iter_s = sourceDataPoint.begin(); iter_s != sourceDataPoint.end(); iter_s++) {
+			int index = std::distance(sourceDataPoint.begin(), iter_s);
+			vD_i[index] = std::sqrt(std::pow((*iter_s).data[0] - (*iter_t).data[0], 2) + std::pow((*iter_s).data[1] - (*iter_t).data[1], 2)) + 0.00001;
+		}
+
+
+		T vD_i_inverse_sum = 0.0;
+		for (auto& vD_i_item : vD_i) {
+			vD_i_inverse_sum += 1.0 / (vD_i_item);
+
+			std::cout << vD_i_item << " _ " << vD_i_inverse_sum << std::endl;
+		}
+
+		std::vector<T> vW_i;
+		vW_i.resize(sourceDataPoint.size());
+		for (int i = 0; i < sourceDataPoint.size(); i++) {
+			auto vD_i_item = vD_i[i];
+			vW_i[i] = (1.0 / (vD_i_item + 0.00001)) / vD_i_inverse_sum;
+		}
+
+		T estimatedZ = 0.0;
+		for (auto iter_s = sourceDataPoint.begin(); iter_s != sourceDataPoint.end(); iter_s++) {
+			int index = std::distance(sourceDataPoint.begin(), iter_s);
+			estimatedZ += vW_i[index] * (*iter_s).data[2];
+	
+		}
+		(*iter_t).data[2] = estimatedZ;
+	
+	}
+	return;
+
+
+
+}
+
+template <typename T = double>
+void spatial_interpolation(std::list<Vec3<T>>& sourceDataPoint, std::list<Vec3<T>>& targetDataPoint, InterpolationMethod method = IDW_Interpolation) {
 
 	//if (method == Liner_Interpolation)
 	//	return interpolation_liner(position, value, interpolation_value);
 	if (method == Kriging_Interpolation)
 		return spatial_interpolation_kriging(sourceDataPoint, targetDataPoint);
+	if (method == IDW_Interpolation)
+		return spatial_interpolation_idw(sourceDataPoint, targetDataPoint);
 }
 #endif
