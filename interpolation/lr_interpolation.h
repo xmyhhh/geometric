@@ -8,7 +8,7 @@
 #include <limits>
 #include "Eigen/Dense"
 
-const double infinity = std::numeric_limits<double>::infinity();
+#define LR_INTERPOLATION_IMPLEMENTATION
 
 typedef enum {
 	Kriging_Interpolation = 0,
@@ -34,6 +34,26 @@ public:
 		data[2] = c;
 	}
 };
+
+extern const double infinity;
+
+template <typename T = double>
+extern void spatial_interpolation_kriging(std::list<Vec3<T>>& sourceDataPoint, std::list<Vec3<T>>& targetDataPoint);
+
+template <typename T = double>
+extern void spatial_interpolation_idw(std::list<Vec3<T>>& sourceDataPoint, std::list<Vec3<T>>& targetDataPoint);
+
+template <typename T = double>
+extern void spatial_interpolation_rbf(std::list<Vec3<T>>& sourceDataPoint, std::list<Vec3<T>>& targetDataPoint);
+
+template <typename T = double>
+extern void spatial_interpolation_gpi(std::list<Vec3<T>>& sourceDataPoint, std::list<Vec3<T>>& targetDataPoint);
+
+template <typename T = double>
+extern void spatial_interpolation(std::list<Vec3<T>>& sourceDataPoint, std::list<Vec3<T>>& targetDataPoint, InterpolationMethod method = RBF_Interpolation);
+
+#ifdef LR_INTERPOLATION_IMPLEMENTATION
+const double infinity = std::numeric_limits<double>::infinity();
 
 template <typename T = double>
 void spatial_interpolation_kriging(std::list<Vec3<T>>& sourceDataPoint, std::list<Vec3<T>>& targetDataPoint) {
@@ -83,7 +103,6 @@ void spatial_interpolation_kriging(std::list<Vec3<T>>& sourceDataPoint, std::lis
 	return;
 }
 
-
 template <typename T = double>
 void spatial_interpolation_idw(std::list<Vec3<T>>& sourceDataPoint, std::list<Vec3<T>>& targetDataPoint) {
 	//该idw插值没有考虑搜索领域实现，复杂度为O（m*n）
@@ -121,8 +140,6 @@ void spatial_interpolation_idw(std::list<Vec3<T>>& sourceDataPoint, std::list<Ve
 
 	}
 	return;
-
-
 
 }
 
@@ -196,7 +213,6 @@ void spatial_interpolation_rbf(std::list<Vec3<T>>& sourceDataPoint, std::list<Ve
 	}
 
 }
-
 
 template <typename T = double>
 void spatial_interpolation_gpi(std::list<Vec3<T>>& sourceDataPoint, std::list<Vec3<T>>& targetDataPoint) {
@@ -283,12 +299,11 @@ void spatial_interpolation_gpi(std::list<Vec3<T>>& sourceDataPoint, std::list<Ve
 	}
 
 }
+#endif
 
 template <typename T = double>
-void spatial_interpolation(std::list<Vec3<T>>& sourceDataPoint, std::list<Vec3<T>>& targetDataPoint, InterpolationMethod method = GPI_Interpolation) {
+void spatial_interpolation(std::list<Vec3<T>>& sourceDataPoint, std::list<Vec3<T>>& targetDataPoint, InterpolationMethod method) {
 
-	//if (method == Liner_Interpolation)
-	//	return interpolation_liner(position, value, interpolation_value);
 	if (method == Kriging_Interpolation)
 		return spatial_interpolation_kriging(sourceDataPoint, targetDataPoint);
 	if (method == IDW_Interpolation)
