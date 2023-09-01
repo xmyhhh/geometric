@@ -15,6 +15,7 @@ typedef enum {
 	Liner_Interpolation = 1,
 	IDW_Interpolation = 2,
 	RBF_Interpolation = 3,
+	GPI_Interpolation = 4 //全局多项式插值法（Global Polynomial Interpolation）
 } InterpolationMethod;
 
 template <typename T = double>
@@ -164,7 +165,6 @@ void spatial_interpolation_rbf(std::list<Vec3<T>>& sourceDataPoint, std::list<Ve
 
 				distance = multiquadric(distance);
 			}
-
 			Matrix_A(i, j) = distance;
 			Matrix_A(j, i) = distance;
 		}
@@ -197,8 +197,95 @@ void spatial_interpolation_rbf(std::list<Vec3<T>>& sourceDataPoint, std::list<Ve
 
 }
 
+
 template <typename T = double>
-void spatial_interpolation(std::list<Vec3<T>>& sourceDataPoint, std::list<Vec3<T>>& targetDataPoint, InterpolationMethod method = RBF_Interpolation) {
+void spatial_interpolation_gpi(std::list<Vec3<T>>& sourceDataPoint, std::list<Vec3<T>>& targetDataPoint) {
+	int ordinal = 3;
+
+	int sourceDataPoint_size = sourceDataPoint.size();
+	int targetDataPoint_size = targetDataPoint.size();
+
+	assert(sourceDataPoint_size > 0);
+	assert(targetDataPoint_size > 0);
+
+
+	if (ordinal == 2) {
+		//x^2 + y^2 + xy + x + y + e
+		Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> Matrix_A(sourceDataPoint_size, 6);
+		Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> Matrix_b(sourceDataPoint_size, 1);
+		for (auto iter = sourceDataPoint.begin(); iter != sourceDataPoint.end(); iter++) {
+			int index = std::distance(sourceDataPoint.begin(), iter);
+			T x = (*iter).data[0];
+			T y = (*iter).data[1];
+			T z = (*iter).data[2];
+			Matrix_A(index, 0) = x * x;
+			Matrix_A(index, 1) = y * y;
+			Matrix_A(index, 2) = x * y;
+			Matrix_A(index, 3) = x;
+			Matrix_A(index, 4) = y;
+			Matrix_A(index, 5) = 1.0;
+
+			Matrix_b(index, 0) = z;
+		}
+		std::cout << "Here is the matrix A:\n" << Matrix_A << std::endl;
+
+		std::cout << "Here is the matrix b:\n" << Matrix_b << std::endl;
+
+		Eigen::VectorXd  Matrix_w = Matrix_A.jacobiSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(Matrix_b);
+
+		for (auto iter = targetDataPoint.begin(); iter != targetDataPoint.end(); iter++) {
+
+			T x = (*iter).data[0];
+			T y = (*iter).data[1];
+			T estimatedZ = Matrix_w(0) * x * x + Matrix_w(1) * y * y + Matrix_w(2) * x * y + Matrix_w(3) * x + Matrix_w(4) * y + Matrix_w(5);
+			(*iter).data[2] = estimatedZ;
+		}
+	}
+	else if (ordinal == 3) {
+		//x^3 + y^3 + x^2y + xy^2 + x^2 + y^2 + xy + x + y + e
+		Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> Matrix_A(sourceDataPoint_size, 10);
+		Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> Matrix_b(sourceDataPoint_size, 1);
+		for (auto iter = sourceDataPoint.begin(); iter != sourceDataPoint.end(); iter++) {
+			int index = std::distance(sourceDataPoint.begin(), iter);
+			T x = (*iter).data[0];
+			T y = (*iter).data[1];
+			T z = (*iter).data[2];
+			Matrix_A(index, 0) = x * x * x;
+			Matrix_A(index, 1) = y * y * y;
+			Matrix_A(index, 2) = x * x * y;
+			Matrix_A(index, 3) = x * y * y;
+			Matrix_A(index, 4) = x * x;
+			Matrix_A(index, 5) = y * y;
+			Matrix_A(index, 6) = x * y;
+			Matrix_A(index, 7) = x;
+			Matrix_A(index, 8) = y;
+			Matrix_A(index, 9) = 1.0;
+
+			Matrix_b(index, 0) = z;
+		}
+
+
+		Eigen::VectorXd  Matrix_w = Matrix_A.jacobiSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(Matrix_b);
+
+		for (auto iter = targetDataPoint.begin(); iter != targetDataPoint.end(); iter++) {
+
+			T x = (*iter).data[0];
+			T y = (*iter).data[1];
+			T estimatedZ = Matrix_w(0) * x * x * x + Matrix_w(1) * y * y * y + Matrix_w(2) * x * x * y;
+			estimatedZ += Matrix_w(3) * x * y * y + Matrix_w(4) * x * x + Matrix_w(5) * y * y + Matrix_w(6) * x * y;
+			estimatedZ += Matrix_w(7) * x + Matrix_w(8) * y + Matrix_w(9);
+			(*iter).data[2] = estimatedZ;
+		}
+	}
+	else {
+		assert(0);
+		//目前只支持有限阶数的gpi算法
+	}
+
+}
+
+template <typename T = double>
+void spatial_interpolation(std::list<Vec3<T>>& sourceDataPoint, std::list<Vec3<T>>& targetDataPoint, InterpolationMethod method = GPI_Interpolation) {
 
 	//if (method == Liner_Interpolation)
 	//	return interpolation_liner(position, value, interpolation_value);
@@ -208,5 +295,7 @@ void spatial_interpolation(std::list<Vec3<T>>& sourceDataPoint, std::list<Vec3<T
 		return spatial_interpolation_idw(sourceDataPoint, targetDataPoint);
 	if (method == RBF_Interpolation)
 		return spatial_interpolation_rbf(sourceDataPoint, targetDataPoint);
+	if (method == GPI_Interpolation)
+		return spatial_interpolation_gpi(sourceDataPoint, targetDataPoint);
 }
 #endif
