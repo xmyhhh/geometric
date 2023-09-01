@@ -92,7 +92,11 @@ void main() {
 	}
 
 
-	std::list<Vec3<double>> source_array(source.begin(), source.end());
-	std::list<Vec3<double>> target_array(target.begin(), target.end());
-	spatial_interpolation(source_array, target_array);
+	//std::list<Vec3<double>> source_list(source.begin(), source.end());
+	//std::list<Vec3<double>> target_array(target.begin(), target.end());
+	source.resize(2);
+	target.resize(2);
+	std::list<Vec3<double>> source_list(source.begin(), source.end());
+	std::list<Vec3<double>> target_list(target.begin(), target.end());
+	spatial_interpolation(source_list, target_list);
 }

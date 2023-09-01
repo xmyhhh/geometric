@@ -6,12 +6,15 @@
 #include <algorithm>
 #include "kriging.h"
 #include <limits>
+#include "Eigen/Dense"
+
 const double infinity = std::numeric_limits<double>::infinity();
 
 typedef enum {
 	Kriging_Interpolation = 0,
 	Liner_Interpolation = 1,
 	IDW_Interpolation = 2,
+	RBF_Interpolation = 3,
 } InterpolationMethod;
 
 template <typename T = double>
@@ -82,9 +85,9 @@ void spatial_interpolation_kriging(std::list<Vec3<T>>& sourceDataPoint, std::lis
 
 template <typename T = double>
 void spatial_interpolation_idw(std::list<Vec3<T>>& sourceDataPoint, std::list<Vec3<T>>& targetDataPoint) {
-
+	//该idw插值没有考虑搜索领域实现，复杂度为O（m*n）
 	for (auto iter_t = targetDataPoint.begin(); iter_t != targetDataPoint.end(); iter_t++) {
-		//Step 1: calculate d_i
+		//Step 1: calculate D_i
 
 		std::vector<T> vD_i;
 		vD_i.resize(sourceDataPoint.size());
@@ -98,9 +101,9 @@ void spatial_interpolation_idw(std::list<Vec3<T>>& sourceDataPoint, std::list<Ve
 		for (auto& vD_i_item : vD_i) {
 			vD_i_inverse_sum += 1.0 / (vD_i_item);
 
-			std::cout << vD_i_item << " _ " << vD_i_inverse_sum << std::endl;
+			//std::cout << vD_i_item << " _ " << vD_i_inverse_sum << std::endl;
 		}
-
+		//Step 2: calculate W_i
 		std::vector<T> vW_i;
 		vW_i.resize(sourceDataPoint.size());
 		for (int i = 0; i < sourceDataPoint.size(); i++) {
@@ -112,10 +115,10 @@ void spatial_interpolation_idw(std::list<Vec3<T>>& sourceDataPoint, std::list<Ve
 		for (auto iter_s = sourceDataPoint.begin(); iter_s != sourceDataPoint.end(); iter_s++) {
 			int index = std::distance(sourceDataPoint.begin(), iter_s);
 			estimatedZ += vW_i[index] * (*iter_s).data[2];
-	
+
 		}
 		(*iter_t).data[2] = estimatedZ;
-	
+
 	}
 	return;
 
@@ -124,7 +127,76 @@ void spatial_interpolation_idw(std::list<Vec3<T>>& sourceDataPoint, std::list<Ve
 }
 
 template <typename T = double>
-void spatial_interpolation(std::list<Vec3<T>>& sourceDataPoint, std::list<Vec3<T>>& targetDataPoint, InterpolationMethod method = IDW_Interpolation) {
+void spatial_interpolation_rbf(std::list<Vec3<T>>& sourceDataPoint, std::list<Vec3<T>>& targetDataPoint) {
+	//ref  https://en.wikipedia.org/wiki/Radial_basis_function_interpolation
+
+	auto inverse_multiquadric = [](T r) {
+		int epsilon = 3;
+		return 1.0 / std::sqrt(std::pow((1.0 / epsilon * r), 2) + 1);
+	};
+
+	int sourceDataPoint_size = sourceDataPoint.size();
+	int targetDataPoint_size = targetDataPoint.size();
+
+	assert(sourceDataPoint_size > 0);
+	assert(targetDataPoint_size > 0);
+
+	//Step 1: calculate mat_A
+	Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> Matrix_A(sourceDataPoint_size, sourceDataPoint_size);
+	for (auto iter_i = sourceDataPoint.begin(); iter_i != sourceDataPoint.end(); iter_i++) {
+		int i = std::distance(sourceDataPoint.begin(), iter_i);
+		for (auto iter_j = iter_i; iter_j != sourceDataPoint.end(); iter_j++) {
+			int j = std::distance(sourceDataPoint.begin(), iter_j);
+			T distance;
+			if (i == j)
+				distance = 0.0;
+			else {
+				distance = std::sqrt(
+					std::pow((*iter_i).data[0] - (*iter_j).data[0], 2)
+					+
+					std::pow((*iter_i).data[1] - (*iter_j).data[1], 2)
+				);
+
+				distance = inverse_multiquadric(distance);
+			}
+
+
+			Matrix_A(i, j) = distance;
+			Matrix_A(j, i) = distance;
+		}
+	}
+	//Step 2: calculate mat_b
+	Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> Matrix_b(sourceDataPoint_size, 1);
+	for (auto iter_i = sourceDataPoint.begin(); iter_i != sourceDataPoint.end(); iter_i++) {
+		int i = std::distance(sourceDataPoint.begin(), iter_i);
+		Matrix_b(i, 0) = (*iter_i).data[2];
+	}
+
+
+	for (int i = 0; i < Matrix_A.rows(); i++) {
+		for (int j = 0; j < Matrix_A.cols(); j++) {
+			std::cout << Matrix_A(i, j) << "       ";
+		}
+		std::cout << std::endl;
+	}
+	std::cout << std::endl;
+	std::cout << std::endl;
+
+	for (int i = 0; i < Matrix_b.rows(); i++) {
+		for (int j = 0; j < Matrix_b.cols(); j++) {
+			std::cout << Matrix_b(i, j) << "       ";
+		}
+		std::cout << std::endl;
+	}
+	//Step 2: calculate mat_x
+	auto x = Matrix_A.colPivHouseholderQr().solve(Matrix_b);
+	std::cout << "The solution is:\n" << x << std::endl;
+
+
+}
+
+template <typename T = double>
+void spatial_interpolation(std::list<Vec3<T>>& sourceDataPoint, std::list<Vec3<T>>& targetDataPoint, InterpolationMethod method = RBF_Interpolation) {
 
 	//if (method == Liner_Interpolation)
 	//	return interpolation_liner(position, value, interpolation_value);
@@ -132,5 +204,7 @@ void spatial_interpolation(std::list<Vec3<T>>& sourceDataPoint, std::list<Vec3<T
 		return spatial_interpolation_kriging(sourceDataPoint, targetDataPoint);
 	if (method == IDW_Interpolation)
 		return spatial_interpolation_idw(sourceDataPoint, targetDataPoint);
+	if (method == RBF_Interpolation)
+		return spatial_interpolation_rbf(sourceDataPoint, targetDataPoint);
 }
 #endif
