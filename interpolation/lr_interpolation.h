@@ -101,7 +101,6 @@ void spatial_interpolation_idw(std::list<Vec3<T>>& sourceDataPoint, std::list<Ve
 		for (auto& vD_i_item : vD_i) {
 			vD_i_inverse_sum += 1.0 / (vD_i_item);
 
-			//std::cout << vD_i_item << " _ " << vD_i_inverse_sum << std::endl;
 		}
 		//Step 2: calculate W_i
 		std::vector<T> vW_i;
@@ -131,8 +130,14 @@ void spatial_interpolation_rbf(std::list<Vec3<T>>& sourceDataPoint, std::list<Ve
 	//ref  https://en.wikipedia.org/wiki/Radial_basis_function_interpolation
 
 	auto inverse_multiquadric = [](T r) {
-		int epsilon = 3;
-		return 1.0 / std::sqrt(std::pow((1.0 / epsilon * r), 2) + 1);
+		double epsilon = 0.198992436915951;
+		return 1.0 / std::sqrt(std::pow(epsilon * r, 2.0) + 1.0);
+	};
+
+	auto multiquadric = [](T r) {
+		double epsilon = 0.198992436915951;
+		double tmp = (epsilon * r);
+		return std::sqrt(1.0 + (tmp * tmp));
 	};
 
 	int sourceDataPoint_size = sourceDataPoint.size();
@@ -157,7 +162,7 @@ void spatial_interpolation_rbf(std::list<Vec3<T>>& sourceDataPoint, std::list<Ve
 					std::pow((*iter_i).data[1] - (*iter_j).data[1], 2)
 				);
 
-				distance = inverse_multiquadric(distance);
+				distance = multiquadric(distance);
 			}
 
 
@@ -189,7 +194,7 @@ void spatial_interpolation_rbf(std::list<Vec3<T>>& sourceDataPoint, std::list<Ve
 		std::cout << std::endl;
 	}
 	//Step 2: calculate mat_x
-	auto x = Matrix_A.colPivHouseholderQr().solve(Matrix_b);
+	Eigen::VectorXd  x = Matrix_A.householderQr().solve(Matrix_b);
 	std::cout << "The solution is:\n" << x << std::endl;
 
 
