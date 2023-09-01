@@ -130,12 +130,12 @@ void spatial_interpolation_rbf(std::list<Vec3<T>>& sourceDataPoint, std::list<Ve
 	//ref  https://en.wikipedia.org/wiki/Radial_basis_function_interpolation
 
 	auto inverse_multiquadric = [](T r) {
-		double epsilon = 0.198992436915951;
+		double epsilon = 0.108992436915951;
 		return 1.0 / std::sqrt(std::pow(epsilon * r, 2.0) + 1.0);
 	};
 
 	auto multiquadric = [](T r) {
-		double epsilon = 0.198992436915951;
+		double epsilon = 0.108992436915951;
 		double tmp = (epsilon * r);
 		return std::sqrt(1.0 + (tmp * tmp));
 	};
@@ -165,7 +165,6 @@ void spatial_interpolation_rbf(std::list<Vec3<T>>& sourceDataPoint, std::list<Ve
 				distance = multiquadric(distance);
 			}
 
-
 			Matrix_A(i, j) = distance;
 			Matrix_A(j, i) = distance;
 		}
@@ -177,26 +176,24 @@ void spatial_interpolation_rbf(std::list<Vec3<T>>& sourceDataPoint, std::list<Ve
 		Matrix_b(i, 0) = (*iter_i).data[2];
 	}
 
+	//Step 3: calculate mat_x
+	Eigen::VectorXd  Matrix_w = Matrix_A.householderQr().solve(Matrix_b);
 
-	for (int i = 0; i < Matrix_A.rows(); i++) {
-		for (int j = 0; j < Matrix_A.cols(); j++) {
-			std::cout << Matrix_A(i, j) << "       ";
+	//Step 4: calculate predict
+	for (auto iter_t = targetDataPoint.begin(); iter_t != targetDataPoint.end(); iter_t++) {
+		T estimatedZ = 0.0;
+		for (auto iter_s = sourceDataPoint.begin(); iter_s != sourceDataPoint.end(); iter_s++) {
+			int index = std::distance(sourceDataPoint.begin(), iter_s);
+			T distance = std::sqrt(
+				std::pow((*iter_t).data[0] - (*iter_s).data[0], 2)
+				+
+				std::pow((*iter_t).data[1] - (*iter_s).data[1], 2)
+			);
+			distance = multiquadric(distance);
+			estimatedZ += Matrix_w(index) * distance;
 		}
-		std::cout << std::endl;
+		(*iter_t).data[2] = estimatedZ;
 	}
-	std::cout << std::endl;
-	std::cout << std::endl;
-
-	for (int i = 0; i < Matrix_b.rows(); i++) {
-		for (int j = 0; j < Matrix_b.cols(); j++) {
-			std::cout << Matrix_b(i, j) << "       ";
-		}
-		std::cout << std::endl;
-	}
-	//Step 2: calculate mat_x
-	Eigen::VectorXd  x = Matrix_A.householderQr().solve(Matrix_b);
-	std::cout << "The solution is:\n" << x << std::endl;
-
 
 }
 
